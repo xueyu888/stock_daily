@@ -1,6 +1,7 @@
 import pymysql
 import tushare as ts
 from datetime import datetime, timedelta
+from requests.exceptions import Timeout
 
 # 连接MySQL数据库
 host = 'localhost'
@@ -45,8 +46,17 @@ for index, row in stocks.iterrows():
     ts_code = row['ts_code']
     print(f'Processing {ts_code}')
 
-    # 获取每个股票的历史数据
-    df = pro.daily(ts_code=ts_code, start_date=start_date, end_date=today)
+    # 获取每个股票的历史数据，最多尝试5次
+    for attempt in range(5):
+        try:
+            df = pro.daily(ts_code=ts_code, start_date=start_date, end_date=today, timeout=5)
+            break
+        except Timeout:
+            print(f'Request timed out, retrying in 3 seconds... (attempt {attempt+1}/5)')
+            time.sleep(3)
+    else:
+        print(f'Could not get data for {ts_code} after 5 attempts, skipping...')
+        continue
 
     # 将数据写入MySQL数据库
     for index, row in df.iterrows():
@@ -63,7 +73,7 @@ for index, row in stocks.iterrows():
         volume = row['vol']
         amount = row['amount']
         cursor = conn.cursor()
-        sql = f"INSERT INTO daily_price (ts_code, trade_date, open_price, high, low, close_price, pre_close, change_price, pct_chg, vol, amount) VALUES ('{ts_code}', '{trade_date}', {open_price}, {high_price}, {low_price}, {close_price}, {pre_close_price}, {change_price}, {pct_chg}, {volume}, {amount})"
+        sql = f"INSERT IGNORE  INTO daily_price (ts_code, trade_date, open_price, high, low, close_price, pre_close, change_price, pct_chg, vol, amount) VALUES ('{ts_code}', '{trade_date}', {open_price}, {high_price}, {low_price}, {close_price}, {pre_close_price}, {change_price}, {pct_chg}, {volume}, {amount})"
         cursor.execute(sql)
         conn.commit()
     cursor.close()
