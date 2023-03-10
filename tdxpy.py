@@ -4,6 +4,7 @@ import pymysql
 from sqlalchemy import create_engine, text
 import time
 from sqlalchemy.pool import QueuePool
+import csv
 
 # 创建连接池
 pool = QueuePool(
@@ -74,7 +75,6 @@ for ts_code in stocks:
                         status = 'buy'
                         selected_stocks.append({'date': row['trade_date'], 'stock': ts_code}) # 添加买入信号到列表
 
-
                         # 遍历每个买入信号，计算收益率并添加到列表中                        
                         for signal in selected_stocks:
                             date_buy = signal['date']
@@ -95,10 +95,20 @@ for ts_code in stocks:
                             
                             return_rate= (sell_close - buy_price )/buy_price 
                             
-                            returns.append(return_rate)
+                            returns.append({'date': row['trade_date'], 'stock': ts_code, 'return_rate':return_rate})
+
+
+# 将数据写入CSV文件
+with open('returns.csv', mode='w', newline='') as csv_file:
+    fieldnames = ['date', 'stock', 'return_rate']
+    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+    writer.writeheader()
+    for item in returns:
+        writer.writerow({'date': item['date'], 'stock': item['stock'], 'return_rate': "{:.2%}".format(item['return_rate'])})
 
 # 计算平均收益率并打印结果    
-average_return_rate= np.mean(returns)
+average_return_rate= np.mean(returns.returns)
                         
 print(selected_stocks)
 end = time.time()
